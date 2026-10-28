@@ -29,5 +29,13 @@ class KwgtChatGPTUnitTest {
         assertNotNull("OpenAI Usage URL must be defined", OpenAiAuthService.OPENAI_USAGE_URL)
         assertEquals("https://platform.openai.com/usage", OpenAiAuthService.OPENAI_USAGE_URL)
         assertEquals("https://chatgpt.com", OpenAiAuthService.CHATGPT_WEB_URL)
+        assertEquals("https://auth.openai.com/codex/device", OpenAiAuthService.OPENAI_DEVICE_URL)
+    }
+
+    @Test
+    fun testDeviceCodeFormat() {
+        val code = OpenAiAuthService.generateDeviceCode()
+        assertNotNull(code)
+        assertTrue("Device code must match pattern 'XXXX - XXXXX'", code.matches(Regex("^[A-Z0-9]{4} - [A-Z0-9]{5}$")))
     }
 }

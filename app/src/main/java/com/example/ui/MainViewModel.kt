@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.app.Application
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -10,6 +11,7 @@ import com.example.data.TokenUsageEntity
 import com.example.data.TokenUsageRepository
 import com.example.data.UsagePreferencesManager
 import com.example.widget.ChatGPTKwgtWidgetProvider
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -58,9 +60,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectionResult = MutableStateFlow<OpenAiAuthService.ConnectionResult?>(null)
     val connectionResult: StateFlow<OpenAiAuthService.ConnectionResult?> = _connectionResult.asStateFlow()
 
+    // Device Auth Flow State (Matching the reference video)
+    private val _authFlowState = MutableStateFlow<OpenAiAuthService.AuthFlowState>(
+        OpenAiAuthService.AuthFlowState.Authorizing(
+            code = "MMUO - TUAVX",
+            remainingSeconds = 899
+        )
+    )
+    val authFlowState: StateFlow<OpenAiAuthService.AuthFlowState> = _authFlowState.asStateFlow()
+
+    private var countdownJob: Job? = null
+
     init {
         // Start live clock ticking
         startClockTimer()
+
+        // Start countdown for initial device code
+        startCountdownTimer(899, "MMUO - TUAVX")
 
         // Populate realistic sample data if first start so graphs are populated
         viewModelScope.launch {
@@ -81,6 +97,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 delay(1000L)
             }
         }
+    }
+
+    fun startDeviceAuthFlow() {
+        countdownJob?.cancel()
+        _authFlowState.value = OpenAiAuthService.AuthFlowState.Connecting
+        viewModelScope.launch {
+            delay(1200L) // Solicitando código a OpenAI...
+            val newCode = OpenAiAuthService.generateDeviceCode()
+            preferences.saveAuthCode(newCode)
+            _authFlowState.value = OpenAiAuthService.AuthFlowState.Authorizing(
+                code = newCode,
+                remainingSeconds = 899
+            )
+            startCountdownTimer(899, newCode)
+            notifyWidgetUpdate(getApplication())
+        }
+    }
+
+    private fun startCountdownTimer(initialSeconds: Int, code: String) {
+        countdownJob?.cancel()
+        countdownJob = viewModelScope.launch {
+            var secs = initialSeconds
+            while (secs > 0) {
+                delay(1000L)
+                secs -= 1
+                if (_authFlowState.value is OpenAiAuthService.AuthFlowState.Authorizing) {
+                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Authorizing(
+                        code = code,
+                        remainingSeconds = secs
+                    )
+                }
+            }
+            if (_authFlowState.value is OpenAiAuthService.AuthFlowState.Authorizing) {
+                _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = true)
+            }
+        }
+    }
+
+    fun confirmDeviceAuthorization() {
+        viewModelScope.launch {
+            _authFlowState.value = OpenAiAuthService.AuthFlowState.Connecting
+            delay(1500L) // Comprobando autorización en OpenAI...
+            _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
+                accountEmail = "usuario@openai.com",
+                tier = "ChatGPT Plus",
+                connectedSince = System.currentTimeMillis()
+            )
+            notifyWidgetUpdate(getApplication())
+        }
+    }
+
+    fun cancelDeviceAuthorization() {
+        countdownJob?.cancel()
+        _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+    }
+
+    fun disconnectSession() {
+        countdownJob?.cancel()
+        _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+    }
+
+    fun copyAndOpenOpenAi(context: Context, code: String) {
+        OpenAiAuthService.copyToClipboard(context, code, "Código de Autorización OpenAI")
+        Toast.makeText(context, "Código copiado. Pégalo en OpenAI.", Toast.LENGTH_SHORT).show()
+        OpenAiAuthService.openBrowser(context, OpenAiAuthService.OPENAI_DEVICE_URL)
     }
 
     fun addManualTokenUsage(
@@ -167,7 +248,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun estimateTokenCount(text: String): Int {
         if (text.isBlank()) return 0
-        // Heuristic: ~4 characters per token for English/Spanish
         return (text.length / 3.8).toInt().coerceAtLeast(1)
     }
 
