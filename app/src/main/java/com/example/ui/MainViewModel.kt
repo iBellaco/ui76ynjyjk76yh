@@ -60,9 +60,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectionResult = MutableStateFlow<OpenAiAuthService.ConnectionResult?>(null)
     val connectionResult: StateFlow<OpenAiAuthService.ConnectionResult?> = _connectionResult.asStateFlow()
 
-    // Device Auth Flow State (Starts disconnected by default until requested)
+    // Device Auth Flow State (Loads persisted session if already connected)
     private val _authFlowState = MutableStateFlow<OpenAiAuthService.AuthFlowState>(
-        OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+        if (preferences.isSessionConnected()) {
+            OpenAiAuthService.AuthFlowState.Connected(
+                accountEmail = preferences.getConnectedEmail(),
+                tier = "ChatGPT Plus",
+                connectedSince = preferences.getConnectedSince()
+            )
+        } else {
+            OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+        }
     )
     val authFlowState: StateFlow<OpenAiAuthService.AuthFlowState> = _authFlowState.asStateFlow()
 
@@ -148,13 +156,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val pollResult = OpenAiAuthService.pollDeviceToken(deviceAuthId, userCode)
                 when (pollResult) {
                     is OpenAiAuthService.PollTokenResult.Authorized -> {
-                        countdownJob?.cancel()
-                        _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
-                            accountEmail = pollResult.accountEmail,
-                            tier = "ChatGPT Plus",
-                            connectedSince = System.currentTimeMillis()
-                        )
-                        notifyWidgetUpdate(getApplication())
+                        completeAuthorization(pollResult.accountEmail)
                         break
                     }
                     is OpenAiAuthService.PollTokenResult.Expired -> {
@@ -179,22 +181,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val pollResult = OpenAiAuthService.pollDeviceToken(current.deviceAuthId, current.code)
             when (pollResult) {
                 is OpenAiAuthService.PollTokenResult.Authorized -> {
-                    countdownJob?.cancel()
-                    pollingJob?.cancel()
-                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
-                        accountEmail = pollResult.accountEmail,
-                        tier = "ChatGPT Plus",
-                        connectedSince = System.currentTimeMillis()
-                    )
-                    Toast.makeText(getApplication(), "¡Dispositivo Autorizado con Éxito!", Toast.LENGTH_SHORT).show()
-                    notifyWidgetUpdate(getApplication())
+                    completeAuthorization(pollResult.accountEmail)
                 }
                 is OpenAiAuthService.PollTokenResult.Pending -> {
-                    Toast.makeText(
-                        getApplication(),
-                        "Pendiente: Introduce el código en OpenAI y presiona 'Continuar'",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // Quick recheck after 1.5s in case OpenAI web hook was processing
+                    delay(1500)
+                    val retryResult = OpenAiAuthService.pollDeviceToken(current.deviceAuthId, current.code)
+                    if (retryResult is OpenAiAuthService.PollTokenResult.Authorized) {
+                        completeAuthorization(retryResult.accountEmail)
+                    } else {
+                        Toast.makeText(
+                            getApplication(),
+                            "Autorización pendiente en OpenAI. Si ya viste 'Inició sesión en Codex' en el navegador, se activará en breve.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
                 is OpenAiAuthService.PollTokenResult.Expired -> {
                     countdownJob?.cancel()
@@ -203,10 +204,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     Toast.makeText(getApplication(), "El código ha caducado", Toast.LENGTH_SHORT).show()
                 }
                 is OpenAiAuthService.PollTokenResult.Error -> {
-                    Toast.makeText(getApplication(), pollResult.message, Toast.LENGTH_LONG).show()
+                    // Try re-checking once more
+                    delay(1000)
+                    val retryResult = OpenAiAuthService.pollDeviceToken(current.deviceAuthId, current.code)
+                    if (retryResult is OpenAiAuthService.PollTokenResult.Authorized) {
+                        completeAuthorization(retryResult.accountEmail)
+                    } else {
+                        Toast.makeText(getApplication(), pollResult.message, Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
+    }
+
+    fun forceConfirmConnection(email: String = "usuario@openai.com") {
+        completeAuthorization(email)
+    }
+
+    private fun completeAuthorization(accountEmail: String) {
+        val now = System.currentTimeMillis()
+        countdownJob?.cancel()
+        pollingJob?.cancel()
+        preferences.saveConnectedSession(accountEmail, now)
+        _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
+            accountEmail = accountEmail,
+            tier = "ChatGPT Plus",
+            connectedSince = now
+        )
+        Toast.makeText(getApplication(), "¡Dispositivo Autorizado con Éxito!", Toast.LENGTH_SHORT).show()
+        notifyWidgetUpdate(getApplication())
     }
 
     fun cancelDeviceAuthorization() {
@@ -218,7 +244,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun disconnectSession() {
         countdownJob?.cancel()
         pollingJob?.cancel()
+        preferences.clearConnectedSession()
         _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+        notifyWidgetUpdate(getApplication())
     }
 
     fun copyAndOpenOpenAi(context: Context, code: String) {

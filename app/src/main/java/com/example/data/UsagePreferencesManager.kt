@@ -76,6 +76,28 @@ class UsagePreferencesManager(context: Context) {
         _autoUpdateMinutes.value = mins
     }
 
+    fun isSessionConnected(): Boolean = prefs.getBoolean(KEY_IS_CONNECTED, false)
+
+    fun getConnectedEmail(): String = prefs.getString(KEY_CONNECTED_EMAIL, "usuario@openai.com") ?: "usuario@openai.com"
+
+    fun getConnectedSince(): Long = prefs.getLong(KEY_CONNECTED_SINCE, 0L)
+
+    fun saveConnectedSession(email: String, connectedSince: Long = System.currentTimeMillis()) {
+        prefs.edit()
+            .putBoolean(KEY_IS_CONNECTED, true)
+            .putString(KEY_CONNECTED_EMAIL, email)
+            .putLong(KEY_CONNECTED_SINCE, connectedSince)
+            .apply()
+    }
+
+    fun clearConnectedSession() {
+        prefs.edit()
+            .putBoolean(KEY_IS_CONNECTED, false)
+            .remove(KEY_CONNECTED_EMAIL)
+            .remove(KEY_CONNECTED_SINCE)
+            .apply()
+    }
+
     private fun generateDefaultAuthCode(): String {
         return "openai_auth_code_7f8a92b3c4d5"
     }
@@ -87,5 +109,8 @@ class UsagePreferencesManager(context: Context) {
         private const val KEY_WEEKLY_LIMIT = "weekly_limit"
         private const val KEY_WIDGET_THEME = "widget_theme"
         private const val KEY_AUTO_UPDATE_MINS = "auto_update_mins"
+        private const val KEY_IS_CONNECTED = "session_is_connected"
+        private const val KEY_CONNECTED_EMAIL = "session_connected_email"
+        private const val KEY_CONNECTED_SINCE = "session_connected_since"
     }
 }

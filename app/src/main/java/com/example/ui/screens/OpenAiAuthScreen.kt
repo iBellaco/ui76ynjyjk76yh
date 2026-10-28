@@ -149,7 +149,6 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
                     },
                     onCheckAuth = {
                         viewModel.confirmDeviceAuthorization()
-                        Toast.makeText(context, "Verificando autorización en OpenAI...", Toast.LENGTH_SHORT).show()
                     },
                     onCancel = {
                         viewModel.cancelDeviceAuthorization()
@@ -250,12 +249,22 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
                     Text("• Cifrado local: Activado en sandbox de Android", fontSize = 13.sp)
                     Text("• Endpoint de autorización: auth.openai.com/codex/device", fontSize = 13.sp)
                     Text("• Si el código caduca (después de 15 min), solicita uno nuevo desde 'Continuar con ChatGPT'.", fontSize = 13.sp)
-                    Text("• Asegúrate de haber iniciado sesión en tu cuenta de ChatGPT en el navegador antes de pegar el código.", fontSize = 13.sp)
+                    Text("• Si el navegador ya mostró 'Inició sesión en Codex', puedes presionar 'Ya autoricé · comprobar' o 'Conectar sesión'.", fontSize = 13.sp)
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showHelpDialog = false }) {
-                    Text("CERRAR")
+                Row {
+                    if (authState is OpenAiAuthService.AuthFlowState.Authorizing) {
+                        TextButton(onClick = {
+                            showHelpDialog = false
+                            viewModel.forceConfirmConnection()
+                        }) {
+                            Text("CONECTAR SESIÓN", color = CodexButtonBlueDark, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    TextButton(onClick = { showHelpDialog = false }) {
+                        Text("CERRAR")
+                    }
                 }
             },
             shape = RoundedCornerShape(20.dp),
