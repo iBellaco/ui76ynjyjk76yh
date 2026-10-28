@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +92,7 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
     var showHelpDialog by remember { mutableStateOf(false) }
     var showEditEmailDialog by remember { mutableStateOf(false) }
     var showAddRequestDialog by remember { mutableStateOf(false) }
+    var showAdjustUsageDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -111,8 +114,8 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(Color(0xFF21262D)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -194,7 +197,9 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
                     onEditEmail = { showEditEmailDialog = true },
                     onAddRequest = { showAddRequestDialog = true },
                     onTestRequest = { viewModel.simulateTestRequest() },
-                    onReset5h = { viewModel.reset5hSlidingWindow() }
+                    onReset5h = { viewModel.reset5hSlidingWindow() },
+                    onIncrement5h = { delta -> viewModel.increment5hRequests(delta) },
+                    onAdjustUsage = { showAdjustUsageDialog = true }
                 )
             }
 
@@ -375,6 +380,56 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showAddRequestDialog = false }) {
+                    Text("CANCELAR", color = CodexTextSecondary)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color(0xFF1E293B)
+        )
+    }
+
+    // Dialog: "Ajustar Contador de Uso Real"
+    if (showAdjustUsageDialog) {
+        var reqsInput by remember { mutableStateOf(total5hReqs.toString()) }
+        var limitInput by remember { mutableStateOf(fiveHourLimit.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { showAdjustUsageDialog = false },
+            title = {
+                Text("Ajustar Uso Real de 5 Hours", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Ingresa tus peticiones usadas actuales en la ventana de 5 horas:", fontSize = 13.sp, color = CodexTextSecondary)
+                    OutlinedTextField(
+                        value = reqsInput,
+                        onValueChange = { reqsInput = it.filter { char -> char.isDigit() } },
+                        label = { Text("Peticiones usadas actuales (5h)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = limitInput,
+                        onValueChange = { limitInput = it.filter { char -> char.isDigit() } },
+                        label = { Text("Límite máximo de peticiones (80)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val reqs = reqsInput.toIntOrNull() ?: total5hReqs
+                        val limit = limitInput.toIntOrNull() ?: fiveHourLimit
+                        viewModel.set5hRequestsExact(reqs)
+                        viewModel.update5hLimit(limit)
+                        showAdjustUsageDialog = false
+                    }
+                ) {
+                    Text("GUARDAR", color = CodexButtonBlueDark, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdjustUsageDialog = false }) {
                     Text("CANCELAR", color = CodexTextSecondary)
                 }
             },
@@ -772,7 +827,9 @@ fun ConnectedStateCard(
     onEditEmail: () -> Unit,
     onAddRequest: () -> Unit,
     onTestRequest: () -> Unit,
-    onReset5h: () -> Unit
+    onReset5h: () -> Unit,
+    onIncrement5h: (Int) -> Unit,
+    onAdjustUsage: () -> Unit
 ) {
     val progress5h = if (limit5h > 0) (reqs5h.toFloat() / limit5h.toFloat()).coerceIn(0f, 1f) else 0f
     val progressWeekly = if (weeklyLimit > 0) (weeklyTokens.toFloat() / weeklyLimit.toFloat()).coerceIn(0f, 1f) else 0f
@@ -911,6 +968,32 @@ fun ConnectedStateCard(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // Automatic Monitoring Banner
+                    Surface(
+                        color = CodexEmerald.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(CodexEmerald)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Sincronización Automática Activa · Los contadores de 5h y semanales se actualizan y reinician solos.",
+                                fontSize = 11.sp,
+                                color = CodexEmerald,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     // 5h sliding window header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -932,11 +1015,11 @@ fun ConnectedStateCard(
                         )
                     }
 
-                    // 5h progress numbers
+                    // 5h progress numbers & quick +/- controls
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
@@ -952,13 +1035,28 @@ fun ConnectedStateCard(
                                 modifier = Modifier.padding(bottom = 3.dp, start = 4.dp)
                             )
                         }
-                        val pct = (progress5h * 100).toInt()
-                        Text(
-                            text = "$pct% usado",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = progress5hColor
-                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            IconButton(
+                                onClick = { onIncrement5h(-1) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0xFF1E293B), CircleShape)
+                            ) {
+                                Text("-", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                            IconButton(
+                                onClick = { onIncrement5h(1) },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(CodexButtonBlueDark, CircleShape)
+                            ) {
+                                Text("+", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
                     }
 
                     LinearProgressIndicator(
@@ -970,6 +1068,29 @@ fun ConnectedStateCard(
                         color = progress5hColor,
                         trackColor = Color(0xFF1E293B),
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val pct = (progress5h * 100).toInt()
+                        Text(
+                            text = "$pct% usado",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = progress5hColor
+                        )
+
+                        TextButton(
+                            onClick = onAdjustUsage,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp), tint = CodexButtonBlueDark)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Ajustar uso real", fontSize = 11.sp, color = CodexButtonBlueDark, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(2.dp))
 

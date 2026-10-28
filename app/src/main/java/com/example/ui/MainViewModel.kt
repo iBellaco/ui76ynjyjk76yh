@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -317,6 +318,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             promptTokens = pTok,
             completionTokens = cTok
         )
+    }
+
+    fun increment5hRequests(delta: Int) {
+        if (delta > 0) {
+            for (i in 1..delta) {
+                recordQuickChatGptRequest("gpt-4o", "Consulta rápida (+1)", 150, 250)
+            }
+        } else if (delta < 0) {
+            viewModelScope.launch {
+                val currentLogs = repository.allUsage.firstOrNull() ?: emptyList()
+                val fiveHoursAgo = System.currentTimeMillis() - (5 * 60 * 60 * 1000L)
+                val recentLogs = currentLogs.filter { it.timestamp >= fiveHoursAgo }
+                val toDelete = recentLogs.take((-delta).coerceAtMost(recentLogs.size))
+                for (entry in toDelete) {
+                    repository.delete(entry)
+                }
+                notifyWidgetUpdate(getApplication())
+            }
+        }
+    }
+
+    fun set5hRequestsExact(targetCount: Int) {
+        viewModelScope.launch {
+            val current5hCount = repository.getRequestCountLast5Hours().firstOrNull() ?: 0
+            val diff = targetCount - current5hCount
+            val fiveHoursAgo = System.currentTimeMillis() - (5 * 60 * 60 * 1000L)
+            if (diff > 0) {
+                for (i in 1..diff) {
+                    recordQuickChatGptRequest("gpt-4o", "Ajuste manual de uso real", 150, 250)
+                }
+            } else if (diff < 0) {
+                val currentLogs = repository.allUsage.firstOrNull() ?: emptyList()
+                val recentLogs = currentLogs.filter { it.timestamp >= fiveHoursAgo }
+                val toDelete = recentLogs.take((-diff).coerceAtMost(recentLogs.size))
+                for (entry in toDelete) {
+                    repository.delete(entry)
+                }
+                notifyWidgetUpdate(getApplication())
+            }
+        }
     }
 
     fun reset5hSlidingWindow() {
