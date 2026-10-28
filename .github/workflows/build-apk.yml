@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -17,6 +17,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     # AGP 9.1.1 and Gradle 9.3.1 require JDK 21+
     - name: Set up JDK 21
@@ -83,7 +85,7 @@ jobs:
     - name: Build Debug APK
       run: |
         ./gradlew :app:assembleDebug --no-daemon --no-configuration-cache --stacktrace
-        cp app/build/outputs/apk/debug/app-debug.apk KWGT-ChatGPT-Monitor-v1.0.apk
+        cp app/build/outputs/apk/debug/*.apk KWGT-ChatGPT-Monitor.apk
 
     - name: Run Unit Tests
       run: ./gradlew :app:testDebugUnitTest --no-daemon --no-configuration-cache
@@ -93,23 +95,24 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: KWGT-ChatGPT-Debug-APK
-        path: KWGT-ChatGPT-Monitor-v1.0.apk
+        path: KWGT-ChatGPT-Monitor.apk
         if-no-files-found: error
 
-    # Option 2: Direct download via GitHub Releases
+    # Option 2: Direct download via GitHub Releases (Runs on every push)
     - name: Publish APK to GitHub Releases
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v1.0.0
-        name: "KWGT ChatGPT Monitor v1.0.0"
+        tag_name: "release-build-${{ github.run_number }}"
+        name: "KWGT ChatGPT Monitor (Build #${{ github.run_number }})"
         body: |
-          ### 📱 KWGT ChatGPT Monitor Widget APK
+          ### 📱 KWGT ChatGPT Monitor APK
 
-          Descarga directa del instalador APK para Android:
-          - **Archivo**: `KWGT-ChatGPT-Monitor-v1.0.apk`
-          - **Estado**: Probado y compilado con éxito.
-          - Compatible con Android 7.0+ (Nougat hasta Android 16).
-        files: KWGT-ChatGPT-Monitor-v1.0.apk
+          Instalador directo para Android:
+          - **Archivo**: `KWGT-ChatGPT-Monitor.apk`
+          - **Compilación**: Build #${{ github.run_number }}
+          - Compatible con Android 7.0 a Android 16.
+        files: KWGT-ChatGPT-Monitor.apk
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      continue-on-error: true
