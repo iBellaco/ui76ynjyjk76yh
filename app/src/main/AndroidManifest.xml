@@ -33,6 +33,12 @@
             <meta-data
                 android:name="kustom.type"
                 android:value="WIDGETS" />
+            <meta-data
+                android:name="kustom.title"
+                android:value="@string/kustom_pack_title" />
+            <meta-data
+                android:name="kustom.description"
+                android:value="@string/kustom_pack_description" />
         </activity>
 
         <!-- Kustom Preset Provider queried by KWGT app -->

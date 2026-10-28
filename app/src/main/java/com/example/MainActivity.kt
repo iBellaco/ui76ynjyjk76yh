@@ -80,6 +80,19 @@ class MainActivity : ComponentActivity() {
                                 )
                             },
                             actions = {
+                                androidx.compose.material3.Surface(
+                                    color = PrimaryEmerald.copy(alpha = 0.15f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                    modifier = Modifier.padding(end = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "v1.0.1 Patch",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryEmerald,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                    )
+                                }
                                 IconButton(
                                     onClick = {
                                         viewModel.copyAuthCode(context)

@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">KWGT ChatGPT</string>
+    <string name="kustom_pack_title">KWGT ChatGPT</string>
+    <string name="kustom_pack_description">Monitor minimalista de cuota 5h y tokens de ChatGPT</string>
+    <string name="kustom_dashboard_title">KWGT ChatGPT</string>
     <string name="widget_title">ChatGPT Monitor KWGT</string>
     <string name="widget_description">Muestra hora, uso de 5h y semanal de ChatGPT</string>
 </resources>

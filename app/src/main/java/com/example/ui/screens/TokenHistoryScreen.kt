@@ -185,19 +185,27 @@ fun TokenHistoryScreen(viewModel: MainViewModel) {
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "No hay registros de uso en este filtro",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedButton(
+                        onClick = { viewModel.simulateTestRequest() },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Registrar Consulta de Prueba (+1)")
+                    }
                 }
             }
         } else {

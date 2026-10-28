@@ -60,6 +60,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectionResult = MutableStateFlow<OpenAiAuthService.ConnectionResult?>(null)
     val connectionResult: StateFlow<OpenAiAuthService.ConnectionResult?> = _connectionResult.asStateFlow()
 
+    val connectedEmail: StateFlow<String> = preferences.connectedEmail
+
+    private val _fiveHourResetCountdown = MutableStateFlow("4h 59m")
+    val fiveHourResetCountdown: StateFlow<String> = _fiveHourResetCountdown.asStateFlow()
+
     // Device Auth Flow State (Loads persisted session if already connected)
     private val _authFlowState = MutableStateFlow<OpenAiAuthService.AuthFlowState>(
         if (preferences.isSessionConnected()) {
@@ -90,6 +95,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val now = Date()
                 _currentTimeText.value = timeFormatter.format(now)
                 _currentDateText.value = dateFormatter.format(now).replaceFirstChar { it.uppercase() }
+
+                val resetTs = preferences.get5hWindowResetTimestamp()
+                val diff = (resetTs - now.time).coerceAtLeast(0L)
+                val hours = (diff / (3600 * 1000L))
+                val minutes = (diff % (3600 * 1000L)) / (60 * 1000L)
+                _fiveHourResetCountdown.value = "${hours}h ${minutes}m"
+
                 delay(1000L)
             }
         }
@@ -246,6 +258,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pollingJob?.cancel()
         preferences.clearConnectedSession()
         _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
+        notifyWidgetUpdate(getApplication())
+    }
+
+    fun updateUserEmail(newEmail: String) {
+        val trimmed = newEmail.trim()
+        if (trimmed.isNotBlank()) {
+            preferences.saveConnectedEmail(trimmed)
+            val current = _authFlowState.value
+            if (current is OpenAiAuthService.AuthFlowState.Connected) {
+                _authFlowState.value = current.copy(accountEmail = trimmed)
+            }
+            Toast.makeText(getApplication(), "Cuenta actualizada: $trimmed", Toast.LENGTH_SHORT).show()
+            notifyWidgetUpdate(getApplication())
+        }
+    }
+
+    fun recordQuickChatGptRequest(
+        model: String = "gpt-4o",
+        promptSummary: String = "Consulta ChatGPT",
+        promptTokens: Int = 180,
+        completionTokens: Int = 320
+    ) {
+        viewModelScope.launch {
+            val total = promptTokens + completionTokens
+            val costPer1k = when (model) {
+                "gpt-4o" -> 0.005
+                "o3-mini" -> 0.003
+                "gpt-4o-mini" -> 0.0003
+                else -> 0.002
+            }
+            val estCost = (total / 1000.0) * costPer1k
+
+            val entry = TokenUsageEntity(
+                timestamp = System.currentTimeMillis(),
+                model = model,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                totalTokens = total,
+                estimatedCostUsd = estCost,
+                promptSummary = promptSummary,
+                source = "Sesión OpenAI"
+            )
+            repository.insert(entry)
+            notifyWidgetUpdate(getApplication())
+            Toast.makeText(getApplication(), "Petición registrada: $model ($total tokens)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun simulateTestRequest() {
+        val models = listOf("gpt-4o", "o3-mini", "gpt-4o-mini")
+        val randomModel = models.random()
+        val pTok = (80..350).random()
+        val cTok = (150..600).random()
+        recordQuickChatGptRequest(
+            model = randomModel,
+            promptSummary = "Petición $randomModel (${pTok + cTok} tokens)",
+            promptTokens = pTok,
+            completionTokens = cTok
+        )
+    }
+
+    fun reset5hSlidingWindow() {
+        preferences.reset5hWindow()
+        Toast.makeText(getApplication(), "Ventana de 5 horas reiniciada", Toast.LENGTH_SHORT).show()
         notifyWidgetUpdate(getApplication())
     }
 
