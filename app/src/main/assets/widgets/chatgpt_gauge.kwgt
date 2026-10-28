@@ -1,0 +1,13 @@
+{
+  "preset_info": {
+    "title": "ChatGPT Multi-Gauge 5h & Weekly",
+    "description": "Widget multi-indicador con medidores circulares de tokens y estado de cuota",
+    "author": "Codex",
+    "version": 1
+  },
+  "config": {
+    "clock": "$df(HH:mm:ss)$",
+    "usage_5h_pct": "$br(kwgt, chatgpt_5h_pct)$",
+    "weekly_tokens": "$br(kwgt, chatgpt_weekly_tokens)$"
+  }
+}

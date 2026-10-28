@@ -24,7 +24,28 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Enables KWGT to detect this APK as a preset package in Paquetes -->
+            <intent-filter>
+                <action android:name="org.kustom.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="org.kustom.category.PACK" />
+            </intent-filter>
+            <meta-data
+                android:name="kustom.type"
+                android:value="WIDGETS" />
         </activity>
+
+        <!-- Kustom Preset Provider queried by KWGT app -->
+        <provider
+            android:name=".provider.KustomPresetProvider"
+            android:authorities="com.aistudio.kwgtchatgpt.kwgtwgt.kustom.provider"
+            android:exported="true"
+            android:grantUriPermissions="true">
+            <intent-filter>
+                <action android:name="org.kustom.provider.WIDGETS" />
+                <action android:name="org.kustom.provider.KOMPONENTS" />
+            </intent-filter>
+        </provider>
 
         <receiver
             android:name=".widget.ChatGPTKwgtWidgetProvider"

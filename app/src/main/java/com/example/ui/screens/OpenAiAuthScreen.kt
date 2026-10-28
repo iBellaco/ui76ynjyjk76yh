@@ -177,6 +177,7 @@ fun OpenAiAuthScreen(viewModel: MainViewModel) {
             is OpenAiAuthService.AuthFlowState.Disconnected -> {
                 DisconnectedStateCard(
                     isExpired = state.isExpired,
+                    errorMessage = state.errorMessage,
                     onStartAuth = { showConfirmDialog = true },
                     onHelpClick = { showHelpDialog = true }
                 )
@@ -436,6 +437,7 @@ fun AuthorizingStateCard(
 @Composable
 fun DisconnectedStateCard(
     isExpired: Boolean,
+    errorMessage: String? = null,
     onStartAuth: () -> Unit,
     onHelpClick: () -> Unit
 ) {
@@ -452,6 +454,19 @@ fun DisconnectedStateCard(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            if (!errorMessage.isNullOrBlank()) {
+                Surface(
+                    color = Color(0xFFEF4444).copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = errorMessage,
+                        color = Color(0xFFEF4444),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
             Text(
                 text = if (isExpired) "REVISAR CONEXIÓN" else "SIN CONECTAR",
                 fontSize = 11.sp,

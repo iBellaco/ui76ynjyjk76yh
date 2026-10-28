@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             KwgtChatGPTTheme {
                 val context = LocalContext.current
+                // Default tab is 0 (OpenAI) as requested
                 var selectedTabIndex by remember { mutableIntStateOf(0) }
 
                 Scaffold(
@@ -70,10 +71,9 @@ class MainActivity : ComponentActivity() {
                             title = {
                                 Text(
                                     text = when (selectedTabIndex) {
-                                        0 -> "KWGT ChatGPT Monitor"
+                                        0 -> "Codex · OpenAI"
                                         1 -> "Historial de Tokens"
-                                        2 -> "Sesión OpenAI & Auth"
-                                        else -> "KWGT Studio"
+                                        else -> "Paquete KWGT Studio"
                                     },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 18.sp
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                                 IconButton(
                                     onClick = {
                                         viewModel.copyAuthCode(context)
-                                        Toast.makeText(context, "📋 Código de Autorización Copiado", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Código copiado. Pégalo en OpenAI.", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.testTag("btn_topbar_copy_code")
                                 ) {
@@ -108,9 +108,9 @@ class MainActivity : ComponentActivity() {
                             NavigationBarItem(
                                 selected = selectedTabIndex == 0,
                                 onClick = { selectedTabIndex = 0 },
-                                icon = { Icon(Icons.Default.Widgets, contentDescription = "Monitor") },
-                                label = { Text("Monitor") },
-                                modifier = Modifier.testTag("nav_item_home"),
+                                icon = { Icon(Icons.Default.Security, contentDescription = "OpenAI") },
+                                label = { Text("OpenAI") },
+                                modifier = Modifier.testTag("nav_item_auth"),
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = PrimaryEmerald,
                                     indicatorColor = PrimaryEmerald.copy(alpha = 0.2f)
@@ -130,19 +130,8 @@ class MainActivity : ComponentActivity() {
                             NavigationBarItem(
                                 selected = selectedTabIndex == 2,
                                 onClick = { selectedTabIndex = 2 },
-                                icon = { Icon(Icons.Default.Security, contentDescription = "OpenAI Auth") },
-                                label = { Text("OpenAI") },
-                                modifier = Modifier.testTag("nav_item_auth"),
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = PrimaryEmerald,
-                                    indicatorColor = PrimaryEmerald.copy(alpha = 0.2f)
-                                )
-                            )
-                            NavigationBarItem(
-                                selected = selectedTabIndex == 3,
-                                onClick = { selectedTabIndex = 3 },
-                                icon = { Icon(Icons.Default.Palette, contentDescription = "Studio") },
-                                label = { Text("KWGT Studio") },
+                                icon = { Icon(Icons.Default.Palette, contentDescription = "Paquete KWGT") },
+                                label = { Text("Paquete KWGT") },
                                 modifier = Modifier.testTag("nav_item_studio"),
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = PrimaryEmerald,
@@ -158,10 +147,9 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                     ) {
                         when (selectedTabIndex) {
-                            0 -> HomeScreen(viewModel)
+                            0 -> OpenAiAuthScreen(viewModel)
                             1 -> TokenHistoryScreen(viewModel)
-                            2 -> OpenAiAuthScreen(viewModel)
-                            3 -> WidgetStudioScreen(viewModel)
+                            2 -> WidgetStudioScreen(viewModel)
                         }
                     }
                 }

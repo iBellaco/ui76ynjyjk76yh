@@ -60,30 +60,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectionResult = MutableStateFlow<OpenAiAuthService.ConnectionResult?>(null)
     val connectionResult: StateFlow<OpenAiAuthService.ConnectionResult?> = _connectionResult.asStateFlow()
 
-    // Device Auth Flow State (Matching the reference video)
+    // Device Auth Flow State (Starts disconnected by default until requested)
     private val _authFlowState = MutableStateFlow<OpenAiAuthService.AuthFlowState>(
-        OpenAiAuthService.AuthFlowState.Authorizing(
-            code = "MMUO - TUAVX",
-            remainingSeconds = 899
-        )
+        OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
     )
     val authFlowState: StateFlow<OpenAiAuthService.AuthFlowState> = _authFlowState.asStateFlow()
 
     private var countdownJob: Job? = null
+    private var pollingJob: Job? = null
 
     init {
         // Start live clock ticking
         startClockTimer()
-
-        // Start countdown for initial device code
-        startCountdownTimer(899, "MMUO - TUAVX")
-
-        // Populate realistic sample data if first start so graphs are populated
-        viewModelScope.launch {
-            if (tokenLogs.value.isEmpty()) {
-                repository.populateSampleDataIfEmpty()
-            }
-        }
     }
 
     private fun startClockTimer() {
@@ -99,62 +87,137 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Requests REAL device code from OpenAI official server
     fun startDeviceAuthFlow() {
         countdownJob?.cancel()
+        pollingJob?.cancel()
         _authFlowState.value = OpenAiAuthService.AuthFlowState.Connecting
+
         viewModelScope.launch {
-            delay(1200L) // Solicitando código a OpenAI...
-            val newCode = OpenAiAuthService.generateDeviceCode()
-            preferences.saveAuthCode(newCode)
-            _authFlowState.value = OpenAiAuthService.AuthFlowState.Authorizing(
-                code = newCode,
-                remainingSeconds = 899
-            )
-            startCountdownTimer(899, newCode)
-            notifyWidgetUpdate(getApplication())
+            when (val result = OpenAiAuthService.requestRealDeviceCode()) {
+                is OpenAiAuthService.RealDeviceCodeResult.Success -> {
+                    preferences.saveAuthCode(result.formattedUserCode)
+                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Authorizing(
+                        code = result.formattedUserCode,
+                        deviceAuthId = result.deviceAuthId,
+                        remainingSeconds = 899,
+                        pollingStatus = "Comprobando autorización..."
+                    )
+                    startCountdownTimer(899, result.formattedUserCode, result.deviceAuthId)
+                    startPolling(result.deviceAuthId, result.rawUserCode, result.interval)
+                    notifyWidgetUpdate(getApplication())
+                }
+                is OpenAiAuthService.RealDeviceCodeResult.Error -> {
+                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(
+                        isExpired = false,
+                        errorMessage = result.message
+                    )
+                }
+            }
         }
     }
 
-    private fun startCountdownTimer(initialSeconds: Int, code: String) {
+    private fun startCountdownTimer(initialSeconds: Int, code: String, deviceAuthId: String) {
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
             var secs = initialSeconds
             while (secs > 0) {
                 delay(1000L)
                 secs -= 1
-                if (_authFlowState.value is OpenAiAuthService.AuthFlowState.Authorizing) {
-                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Authorizing(
-                        code = code,
-                        remainingSeconds = secs
-                    )
+                val current = _authFlowState.value
+                if (current is OpenAiAuthService.AuthFlowState.Authorizing) {
+                    _authFlowState.value = current.copy(remainingSeconds = secs)
                 }
             }
             if (_authFlowState.value is OpenAiAuthService.AuthFlowState.Authorizing) {
+                pollingJob?.cancel()
                 _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = true)
             }
         }
     }
 
+    private fun startPolling(deviceAuthId: String, userCode: String, intervalSeconds: Int) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            val waitMillis = (intervalSeconds.coerceAtLeast(3)) * 1000L
+            while (true) {
+                delay(waitMillis)
+                val current = _authFlowState.value
+                if (current !is OpenAiAuthService.AuthFlowState.Authorizing) break
+
+                val pollResult = OpenAiAuthService.pollDeviceToken(deviceAuthId, userCode)
+                when (pollResult) {
+                    is OpenAiAuthService.PollTokenResult.Authorized -> {
+                        countdownJob?.cancel()
+                        _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
+                            accountEmail = pollResult.accountEmail,
+                            tier = "ChatGPT Plus",
+                            connectedSince = System.currentTimeMillis()
+                        )
+                        notifyWidgetUpdate(getApplication())
+                        break
+                    }
+                    is OpenAiAuthService.PollTokenResult.Expired -> {
+                        countdownJob?.cancel()
+                        _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = true)
+                        break
+                    }
+                    is OpenAiAuthService.PollTokenResult.Pending -> {
+                        // Keep polling
+                    }
+                    is OpenAiAuthService.PollTokenResult.Error -> {
+                        // Transient error, keep waiting
+                    }
+                }
+            }
+        }
+    }
+
     fun confirmDeviceAuthorization() {
+        val current = _authFlowState.value as? OpenAiAuthService.AuthFlowState.Authorizing ?: return
         viewModelScope.launch {
-            _authFlowState.value = OpenAiAuthService.AuthFlowState.Connecting
-            delay(1500L) // Comprobando autorización en OpenAI...
-            _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
-                accountEmail = "usuario@openai.com",
-                tier = "ChatGPT Plus",
-                connectedSince = System.currentTimeMillis()
-            )
-            notifyWidgetUpdate(getApplication())
+            val pollResult = OpenAiAuthService.pollDeviceToken(current.deviceAuthId, current.code)
+            when (pollResult) {
+                is OpenAiAuthService.PollTokenResult.Authorized -> {
+                    countdownJob?.cancel()
+                    pollingJob?.cancel()
+                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Connected(
+                        accountEmail = pollResult.accountEmail,
+                        tier = "ChatGPT Plus",
+                        connectedSince = System.currentTimeMillis()
+                    )
+                    Toast.makeText(getApplication(), "¡Dispositivo Autorizado con Éxito!", Toast.LENGTH_SHORT).show()
+                    notifyWidgetUpdate(getApplication())
+                }
+                is OpenAiAuthService.PollTokenResult.Pending -> {
+                    Toast.makeText(
+                        getApplication(),
+                        "Pendiente: Introduce el código en OpenAI y presiona 'Continuar'",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                is OpenAiAuthService.PollTokenResult.Expired -> {
+                    countdownJob?.cancel()
+                    pollingJob?.cancel()
+                    _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = true)
+                    Toast.makeText(getApplication(), "El código ha caducado", Toast.LENGTH_SHORT).show()
+                }
+                is OpenAiAuthService.PollTokenResult.Error -> {
+                    Toast.makeText(getApplication(), pollResult.message, Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
     fun cancelDeviceAuthorization() {
         countdownJob?.cancel()
+        pollingJob?.cancel()
         _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
     }
 
     fun disconnectSession() {
         countdownJob?.cancel()
+        pollingJob?.cancel()
         _authFlowState.value = OpenAiAuthService.AuthFlowState.Disconnected(isExpired = false)
     }
 
@@ -211,12 +274,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.clearAll()
             notifyWidgetUpdate(getApplication())
         }
-    }
-
-    fun generateNewAuthCode(): String {
-        val newCode = preferences.generateAndSaveNewAuthCode()
-        notifyWidgetUpdate(getApplication())
-        return newCode
     }
 
     fun saveApiKey(key: String) {

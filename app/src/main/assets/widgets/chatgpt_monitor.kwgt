@@ -1,0 +1,15 @@
+{
+  "preset_info": {
+    "title": "ChatGPT Clock & Usage Minimal",
+    "description": "Widget minimalista de reloj con estado de uso de 5 horas y semanal de ChatGPT",
+    "author": "Codex",
+    "version": 1
+  },
+  "config": {
+    "clock": "$df(hh:mm)$",
+    "date": "$df(EEE, d MMM)$",
+    "usage_5h": "$br(kwgt, chatgpt_5h_reqs)$",
+    "usage_weekly": "$br(kwgt, chatgpt_weekly_tokens)$",
+    "auth_code": "$br(kwgt, chatgpt_auth_code)$"
+  }
+}

@@ -47,60 +47,6 @@ class TokenUsageRepository(private val dao: TokenUsageDao) {
     }
 
     suspend fun populateSampleDataIfEmpty() {
-        // Generate realistic initial logs if empty so the user sees real visuals immediately
-        val now = System.currentTimeMillis()
-        val samples = listOf(
-            TokenUsageEntity(
-                timestamp = now - (15 * 60 * 1000L),
-                model = "gpt-4o",
-                promptTokens = 1250,
-                completionTokens = 840,
-                totalTokens = 2090,
-                estimatedCostUsd = 0.012,
-                promptSummary = "Análisis de código Kotlin y optimización de corrutinas",
-                source = "ChatGPT Web"
-            ),
-            TokenUsageEntity(
-                timestamp = now - (1 * 3600 * 1000L),
-                model = "o3-mini",
-                promptTokens = 3400,
-                completionTokens = 1920,
-                totalTokens = 5320,
-                estimatedCostUsd = 0.021,
-                promptSummary = "Razonamiento lógico para algoritmo de ordenamiento en Android",
-                source = "ChatGPT App"
-            ),
-            TokenUsageEntity(
-                timestamp = now - (3 * 3600 * 1000L),
-                model = "gpt-4o-mini",
-                promptTokens = 890,
-                completionTokens = 420,
-                totalTokens = 1310,
-                estimatedCostUsd = 0.002,
-                promptSummary = "Resumen de documentación KWGT Kustom",
-                source = "Widget Auto-Sync"
-            ),
-            TokenUsageEntity(
-                timestamp = now - (24 * 3600 * 1000L),
-                model = "gpt-4o",
-                promptTokens = 4500,
-                completionTokens = 3100,
-                totalTokens = 7600,
-                estimatedCostUsd = 0.045,
-                promptSummary = "Generación de layout Compose y componentes M3",
-                source = "ChatGPT Web"
-            ),
-            TokenUsageEntity(
-                timestamp = now - (3 * 86400 * 1000L),
-                model = "gpt-4o",
-                promptTokens = 8200,
-                completionTokens = 4500,
-                totalTokens = 12700,
-                estimatedCostUsd = 0.078,
-                promptSummary = "Refactorización de base de datos Room y DAOs",
-                source = "API Key"
-            )
-        )
-        samples.forEach { dao.insertUsage(it) }
+        // Starts completely empty by default as requested
     }
 }
