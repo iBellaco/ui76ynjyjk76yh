@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">KWGT ChatGPT</string>
+    <string name="widget_title">ChatGPT Monitor KWGT</string>
+    <string name="widget_description">Muestra hora, uso de 5h y semanal de ChatGPT</string>
+</resources>

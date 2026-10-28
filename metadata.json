@@ -1,0 +1,7 @@
+{
+  "name": "KWGT ChatGPT Widget",
+  "description": "Widget minimalista estilo KWGT para la pantalla de inicio con reloj en vivo, monitoreo de uso de ChatGPT (5h y semanal), acceso OpenAI, código de autorización e historial de tokens.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
